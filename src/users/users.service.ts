@@ -74,11 +74,11 @@ export class UsersService {
     }
 
     // Enviar correo de activación
-    await this.mailService.sendActivationEmail(
-      newUser.email,
-      newUser.fullName,
-      activationToken
-    );
+    // await this.mailService.sendActivationEmail(
+    //   newUser.email,
+    //   newUser.fullName,
+    //   activationToken
+    // );
 
     return newUser;
   }

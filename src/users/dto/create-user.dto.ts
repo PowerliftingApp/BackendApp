@@ -23,5 +23,10 @@ export class CreateUserDto {
 
   @IsOptional()
   @IsString()
-  coachId?: string; // Para atletas: ID del entrenador al que vincularse (no se guardará como propiedad del atleta)
+  coachId?: string; // Para entrenadores: ID del entrenador propio al que pueden vincularse los atletas
+
+  @IsOptional()
+  @IsString()
+  coach?: string; // Para atletas: ID del entrenador al que vincularse (no se guardará como propiedad del atleta) 
+
 }

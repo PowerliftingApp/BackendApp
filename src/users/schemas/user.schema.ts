@@ -64,20 +64,6 @@ export class User {
   })
   coach?: MongooseSchema.Types.ObjectId;
 
-  // Solo para entrenadores: lista de atletas asociados
-  @Prop({ 
-    type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }], 
-    default: [],
-    // Añadimos este validador para asegurarnos de que solo los entrenadores tengan atletas
-    validate: {
-      validator: function(this: User) {
-        return this.role === UserRole.COACH;
-      },
-      message: 'Solo los entrenadores pueden tener atletas asociados'
-    }
-  })
-  athletes?: MongooseSchema.Types.ObjectId[];
-
   @Prop()
   activationToken?: string;
 }
