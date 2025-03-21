@@ -51,8 +51,9 @@ export class User {
 
   // Solo para atletas: referencia a su entrenador
   @Prop({ 
-    type: MongooseSchema.Types.ObjectId, 
-    ref: 'User', 
+    ref: 'User',
+    unique: true,
+    sparse: true, 
     required: false,
     // Añadimos este validador para asegurarnos de que solo los atletas tengan coach
     validate: {
@@ -62,7 +63,7 @@ export class User {
       message: 'Solo los atletas pueden tener un entrenador asignado'
     }
   })
-  coach?: MongooseSchema.Types.ObjectId;
+  coach?: string;
 
   @Prop()
   activationToken?: string;

@@ -19,6 +19,7 @@ export class UsersController {
         fullName: user.fullName,
         role: user.role,
         coachId: user.coachId,
+        coach: user.coach,
       },
     };
   }

@@ -47,9 +47,9 @@ export class UsersService {
     }
     
     // Si el usuario es atleta y proporcionó un ID de entrenador, verificar y establecer relación
-    if (createUserDto.role === UserRole.ATHLETE && createUserDto.coachId) {
+    if (createUserDto.role === UserRole.ATHLETE && createUserDto.coach) {
       const coach = await this.userModel.findOne({ 
-        coachId: createUserDto.coachId, 
+        coachId: createUserDto.coach, 
         role: UserRole.COACH 
       });
       
@@ -58,16 +58,11 @@ export class UsersService {
       }
       
       // Establecer la referencia al entrenador
-      newUser.coach = coach._id as ObjectId;
+      newUser.coach = coach.coachId as string;
       
       // Guardamos el usuario para obtener su ID
       await newUser.save();
       
-      // Actualizar la lista de atletas del entrenador
-      await this.userModel.findByIdAndUpdate(
-        coach._id,
-        { $push: { athletes: newUser._id } }
-      );
     } else {
       // Si no hay relación con un entrenador, simplemente guardamos el usuario
       await newUser.save();
