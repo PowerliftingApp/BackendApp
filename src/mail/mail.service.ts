@@ -23,7 +23,7 @@ export class MailService {
     token: string,
   ): Promise<void> {
     const frontendUrl = this.configService.get<string>('FRONTEND_URL');
-    const activationUrl = `${frontendUrl}/activate-account?token=${token}`;
+    const activationUrl = `${frontendUrl}/activate-account/${token}`;
 
     await this.transporter.sendMail({
       from: this.configService.get<string>('EMAIL_FROM'),
