@@ -67,6 +67,12 @@ export class User {
 
   @Prop()
   activationToken?: string;
+
+  @Prop()
+  passwordRecoveryToken?: string;
+
+  @Prop()
+  passwordRecoveryExpires?: Date;
 }
 
 export type UserDocument = User & Document & UserMethods;

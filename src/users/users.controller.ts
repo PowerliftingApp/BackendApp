@@ -43,4 +43,21 @@ export class UsersController {
   async getProfile(@Req() req) {
     return req.user;
   }
+
+  @Post('recover-password')
+  async requestPasswordRecovery(@Body('email') email: string) {
+    await this.usersService.requestPasswordRecovery(email);
+    return {
+      message: 'Se ha enviado un correo con las instrucciones para recuperar tu contraseña',
+    };
+  }
+
+  @Post('reset-password')
+  async resetPassword(@Body('token') token: string, @Body('newPassword') newPassword: string) {
+    await this.usersService.resetPassword(token, newPassword);
+    return {
+      message: 'Contraseña restablecida correctamente',
+    };
+  }
+  
 }

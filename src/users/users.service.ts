@@ -115,4 +115,38 @@ export class UsersService {
     // Acceder al coachId a través de la referencia poblada
     return (athlete.coach as any).coachId;
   }
+
+  async requestPasswordRecovery(email: string): Promise<void> {
+    const user = await this.userModel.findOne({ email });
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    const recoveryToken = crypto.randomBytes(32).toString('hex');
+    user.passwordRecoveryToken = recoveryToken;
+    user.passwordRecoveryExpires = new Date(Date.now() + 3600000); // 1 hora
+    await user.save();
+
+    await this.mailService.sendPasswordRecoveryEmail(
+      user.email,
+      user.fullName,
+      recoveryToken
+    );
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const user = await this.userModel.findOne({
+      passwordRecoveryToken: token,
+      passwordRecoveryExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      throw new BadRequestException('Token inválido o expirado');
+    }
+
+    user.password = newPassword;
+    user.passwordRecoveryToken = undefined;
+    user.passwordRecoveryExpires = undefined;
+    await user.save();
+  }
 }

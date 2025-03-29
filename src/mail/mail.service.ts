@@ -38,4 +38,26 @@ export class MailService {
       `,
     });
   }
+
+  async sendPasswordRecoveryEmail(
+    email: string,
+    name: string,
+    token: string,
+  ): Promise<void> {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+    const recoveryUrl = `${frontendUrl}/reset-password?token=${token}`;
+
+    await this.transporter.sendMail({
+      from: this.configService.get<string>('EMAIL_FROM'),
+      to: email,
+      subject: 'Recuperación de contraseña - Fitness App',
+      html: `
+        <h1>¡Hola ${name}!</h1>
+        <p>Has solicitado restablecer tu contraseña. Haz clic en el siguiente enlace:</p>
+        <a href="${recoveryUrl}">Restablecer contraseña</a>
+        <p>Este enlace expirará en 1 hora.</p>
+        <p>Si no solicitaste este cambio, puedes ignorar este mensaje.</p>
+      `,
+    });
+  }
 }
