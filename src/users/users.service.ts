@@ -69,11 +69,11 @@ export class UsersService {
     }
 
     // Enviar correo de activación
-    await this.mailService.sendActivationEmail(
-      newUser.email,
-      newUser.fullName,
-      activationToken
-    );
+    // await this.mailService.sendActivationEmail(
+    //   newUser.email,
+    //   newUser.fullName,
+    //   activationToken
+    // );
 
     return newUser;
   }
@@ -92,7 +92,7 @@ export class UsersService {
   async findByEmail(email: string): Promise<UserDocument> {
     const user = await this.userModel.findOne({ email });
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException('Usuario no encontrado')
     }
     return user;
   }
