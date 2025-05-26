@@ -1,7 +1,17 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, ObjectId } from 'mongoose';
-import { User, UserDocument, UserRole, UserStatus } from './schemas/user.schema';
+import {
+  User,
+  UserDocument,
+  UserRole,
+  UserStatus,
+} from './schemas/user.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import * as crypto from 'crypto';
 import { MailService } from '../mail/mail.service';
@@ -20,7 +30,9 @@ export class UsersService {
 
   async create(createUserDto: CreateUserDto): Promise<UserDocument> {
     // Verificar si el correo ya está en uso
-    const existingUser = await this.userModel.findOne({ email: createUserDto.email });
+    const existingUser = await this.userModel.findOne({
+      email: createUserDto.email,
+    });
     if (existingUser) {
       throw new ConflictException('El correo electrónico ya está en uso');
     }
@@ -33,9 +45,9 @@ export class UsersService {
       role: createUserDto.role,
       // No incluimos coachId aquí porque depende del rol
     };
-    
+
     const newUser = new this.userModel(userData);
-    
+
     // Generar token de activación
     const activationToken = crypto.randomBytes(32).toString('hex');
     newUser.activationToken = activationToken;
@@ -45,24 +57,25 @@ export class UsersService {
       // Usamos el método estático para generar el coachId
       newUser.coachId = generateCoachId();
     }
-    
+
     // Si el usuario es atleta y proporcionó un ID de entrenador, verificar y establecer relación
     if (createUserDto.role === UserRole.ATHLETE && createUserDto.coach) {
-      const coach = await this.userModel.findOne({ 
-        coachId: createUserDto.coach, 
-        role: UserRole.COACH 
+      const coach = await this.userModel.findOne({
+        coachId: createUserDto.coach,
+        role: UserRole.COACH,
       });
-      
+
       if (!coach) {
-        throw new NotFoundException('El ID de entrenador proporcionado no existe');
+        throw new NotFoundException(
+          'El ID de entrenador proporcionado no existe',
+        );
       }
-      
+
       // Establecer la referencia al entrenador
       newUser.coach = coach.coachId as string;
-      
+
       // Guardamos el usuario para obtener su ID
       await newUser.save();
-      
     } else {
       // Si no hay relación con un entrenador, simplemente guardamos el usuario
       await newUser.save();
@@ -85,14 +98,14 @@ export class UsersService {
     }
 
     user.status = UserStatus.ACTIVE;
-    user.activationToken = "";
+    user.activationToken = '';
     await user.save();
   }
 
   async findByEmail(email: string): Promise<UserDocument> {
     const user = await this.userModel.findOne({ email });
     if (!user) {
-      throw new NotFoundException('Usuario no encontrado')
+      throw new NotFoundException('Usuario no encontrado');
     }
     return user;
   }
@@ -101,7 +114,7 @@ export class UsersService {
     const coach = await this.userModel.findOne({ coachId });
     if (!coach) {
       throw new NotFoundException('Coach not found');
-    } 
+    }
     return coach;
   }
 
@@ -111,7 +124,7 @@ export class UsersService {
     if (!athlete || !athlete.coach) {
       return null;
     }
-    
+
     // Acceder al coachId a través de la referencia poblada
     return (athlete.coach as any).coachId;
   }
@@ -130,14 +143,14 @@ export class UsersService {
     await this.mailService.sendPasswordRecoveryEmail(
       user.email,
       user.fullName,
-      recoveryToken
+      recoveryToken,
     );
   }
 
   async resetPassword(token: string, newPassword: string): Promise<void> {
     const user = await this.userModel.findOne({
       passwordRecoveryToken: token,
-      passwordRecoveryExpires: { $gt: Date.now() }
+      passwordRecoveryExpires: { $gt: Date.now() },
     });
 
     if (!user) {
@@ -148,5 +161,9 @@ export class UsersService {
     user.passwordRecoveryToken = undefined;
     user.passwordRecoveryExpires = undefined;
     await user.save();
+  }
+
+  async getAthletes(coachId: string): Promise<UserDocument[]> {
+    return this.userModel.find({ coach: coachId, role: UserRole.ATHLETE }).exec();
   }
 }

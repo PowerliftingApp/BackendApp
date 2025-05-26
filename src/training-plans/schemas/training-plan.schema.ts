@@ -47,10 +47,10 @@ export class SessionSchema {
 
 @Schema({ timestamps: true })
 export class TrainingPlan {
-  @Prop({ required: true })
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   athleteId: string;
 
-  @Prop({ required: true, unique: true })
+  @Prop({ required: true, index: true })
   coachId: string;
 
   @Prop({ required: true })
@@ -68,5 +68,8 @@ export class TrainingPlan {
 
 export type TrainingPlanDocument = TrainingPlan & Document;
 export const TrainingPlanSchema = SchemaFactory.createForClass(TrainingPlan);
+
+// Eliminar el índice único existente
+TrainingPlanSchema.index({ coachId: 1 }, { unique: false });
 
 

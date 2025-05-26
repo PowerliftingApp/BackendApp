@@ -1,4 +1,12 @@
-import { Controller, Post, Body, Param, Get, UseGuards, Req } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Param,
+  Get,
+  UseGuards,
+  Req,
+} from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
@@ -48,16 +56,37 @@ export class UsersController {
   async requestPasswordRecovery(@Body('email') email: string) {
     await this.usersService.requestPasswordRecovery(email);
     return {
-      message: 'Se ha enviado un correo con las instrucciones para recuperar tu contraseña',
+      message:
+        'Se ha enviado un correo con las instrucciones para recuperar tu contraseña',
     };
   }
 
   @Post('reset-password')
-  async resetPassword(@Body('token') token: string, @Body('newPassword') newPassword: string) {
+  async resetPassword(
+    @Body('token') token: string,
+    @Body('newPassword') newPassword: string,
+  ) {
     await this.usersService.resetPassword(token, newPassword);
     return {
       message: 'Contraseña restablecida correctamente',
     };
   }
-  
+
+  @Get('athletes/:coachId')
+  async getAthletes(@Param('coachId') coachId: string) {
+    const user = await this.usersService.getAthletes(coachId);
+
+    const athletes = user.map((user) => {
+      return {
+        _id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
+        coachId: user.coachId,
+        coach: user.coach,
+      };
+    });
+
+    return athletes;
+  }
 }

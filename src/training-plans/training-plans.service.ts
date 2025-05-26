@@ -18,11 +18,17 @@ export class TrainingPlansService {
   }
 
   async findAll(): Promise<TrainingPlan[]> {
-    return this.trainingPlanModel.find().exec();
+    return this.trainingPlanModel
+      .find()
+      .populate('athleteId', 'fullName email')
+      .exec();
   }
 
   async findOne(id: string): Promise<TrainingPlan> {
-    const plan = await this.trainingPlanModel.findById(id).exec();
+    const plan = await this.trainingPlanModel
+      .findById(id)
+      .populate('athleteId', 'fullName email')
+      .exec();
     if (!plan) {
       throw new NotFoundException(`Training plan with ID ${id} not found`);
     }
@@ -30,11 +36,17 @@ export class TrainingPlansService {
   }
 
   async findByAthleteId(athleteId: string): Promise<TrainingPlan[]> {
-    return this.trainingPlanModel.find({ athleteId }).exec();
+    return this.trainingPlanModel
+      .find({ athleteId })
+      .populate('athleteId', 'fullName email')
+      .exec();
   }
 
   async findByCoachId(coachId: string): Promise<TrainingPlan[]> {
-    return this.trainingPlanModel.find({ coachId }).exec();
+    return this.trainingPlanModel
+      .find({ coachId })
+      .populate('athleteId', 'fullName email')
+      .exec();
   }
 
   async update(id: string, updateTrainingPlanDto: UpdateTrainingPlanDto): Promise<TrainingPlan> {
