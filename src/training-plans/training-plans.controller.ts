@@ -14,6 +14,9 @@ export class TrainingPlansController {
 
   @Get()
   findAll(@Query('athleteId') athleteId?: string, @Query('coachId') coachId?: string) {
+    if (athleteId && coachId) {
+      return this.trainingPlansService.findByCoachAndAthlete(coachId, athleteId);
+    }
     if (athleteId) {
       return this.trainingPlansService.findByAthleteId(athleteId);
     }

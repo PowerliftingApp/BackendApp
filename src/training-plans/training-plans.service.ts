@@ -49,6 +49,13 @@ export class TrainingPlansService {
       .exec();
   }
 
+  async findByCoachAndAthlete(coachId: string, athleteId: string): Promise<TrainingPlan[]> {
+    return this.trainingPlanModel
+      .find({ coachId, athleteId })
+      .populate('athleteId', 'fullName email')
+      .exec();
+  }
+
   async update(id: string, updateTrainingPlanDto: UpdateTrainingPlanDto): Promise<TrainingPlan> {
     const updatedPlan = await this.trainingPlanModel
       .findByIdAndUpdate(id, updateTrainingPlanDto, { new: true })
