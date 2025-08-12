@@ -13,6 +13,8 @@ export class PerformedSetSchema {
   loadUsed: number;
   @Prop({ default: null })
   measureAchieved: number;
+  @Prop({ default: null })
+  notes: string;
 }
 @Schema()
 export class ExerciseSchema {
