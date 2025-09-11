@@ -6,10 +6,13 @@ import {
   Get,
   UseGuards,
   Req,
+  Delete,
+  Put,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @Controller('users')
 export class UsersController {
@@ -52,6 +55,23 @@ export class UsersController {
     return req.user;
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Put('profile')
+  async updateProfile(@Req() req, @Body() updateUserDto: UpdateUserDto) {
+    const updated = await this.usersService.updateProfile(req.user.userId, updateUserDto);
+    return {
+      message: 'Perfil actualizado correctamente',
+      user: {
+        id: updated._id,
+        email: updated.email,
+        fullName: updated.fullName,
+        role: updated.role,
+        coachId: updated.coachId,
+        coach: updated.coach,
+      },
+    };
+  }
+
   @Post('recover-password')
   async requestPasswordRecovery(@Body('email') email: string) {
     await this.usersService.requestPasswordRecovery(email);
@@ -88,5 +108,97 @@ export class UsersController {
     });
 
     return athletes;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('athlete/:athleteId')
+  async getAthleteDetails(@Param('athleteId') athleteId: string, @Req() req) {
+    // Solo coaches pueden ver detalles de atletas
+    if (req.user.role !== 'coach') {
+      throw new Error('Solo los entrenadores pueden ver detalles de atletas');
+    }
+    
+    const athleteDetails = await this.usersService.getAthleteDetails(athleteId, req.user.userId);
+    return athleteDetails;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('search/:email')
+  async searchAthleteByEmail(@Param('email') email: string, @Req() req) {
+    // Solo coaches pueden buscar atletas
+    if (req.user.role !== 'coach') {
+      throw new Error('Solo los entrenadores pueden buscar atletas');
+    }
+    
+    const athlete = await this.usersService.findAthleteByEmail(email);
+    if (!athlete) {
+      return { found: false, message: 'Atleta no encontrado' };
+    }
+    
+    return {
+      found: true,
+      athlete: {
+        _id: athlete._id,
+        fullName: athlete.fullName,
+        email: athlete.email,
+        role: athlete.role,
+        coach: athlete.coach,
+        hasCoach: !!athlete.coach,
+      },
+    };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put('athletes/:athleteId/link-coach')
+  async linkCoach(
+    @Param('athleteId') athleteId: string,
+    @Req() req,
+  ) {
+    // Solo coaches pueden vincular atletas
+    if (req.user.role !== 'coach') {
+      throw new Error('Solo los entrenadores pueden vincular atletas');
+    }
+    
+    const updated = await this.usersService.linkCoachToAthlete(
+      athleteId,
+      req.user.userId,
+    );
+    
+    return {
+      message: 'Atleta vinculado correctamente',
+      athlete: {
+        _id: updated._id,
+        fullName: updated.fullName,
+        email: updated.email,
+        role: updated.role,
+        coach: updated.coach,
+      },
+    };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('athletes/:athleteId/coach')
+  async unlinkCoach(
+    @Param('athleteId') athleteId: string,
+    @Req() req,
+  ) {
+    const requester = {
+      userId: req.user.userId,
+      role: req.user.role,
+    };
+    const updated = await this.usersService.unlinkCoachFromAthlete(
+      athleteId,
+      requester,
+    );
+    return {
+      message: 'Entrenador desvinculado correctamente',
+      athlete: {
+        _id: updated._id,
+        fullName: updated.fullName,
+        email: updated.email,
+        role: updated.role,
+        coach: updated.coach ?? null,
+      },
+    };
   }
 }
