@@ -1,7 +1,18 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, ObjectId } from 'mongoose';
-import { User, UserDocument, UserRole, UserStatus } from './schemas/user.schema';
+import {
+  User,
+  UserDocument,
+  UserRole,
+  UserStatus,
+} from './schemas/user.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import * as crypto from 'crypto';
 import { MailService } from '../mail/mail.service';
@@ -20,10 +31,22 @@ export class UsersService {
 
   async create(createUserDto: CreateUserDto): Promise<UserDocument> {
     // Verificar si el correo ya está en uso
-    const existingUser = await this.userModel.findOne({ email: createUserDto.email });
+    const existingUser = await this.userModel.findOne({
+      email: createUserDto.email,
+    });
     if (existingUser) {
       throw new ConflictException('El correo electrónico ya está en uso');
     }
+
+    // Validar que un usuario no intente registrarse con datos de ambos roles
+    if (createUserDto.role === UserRole.COACH && createUserDto.coach) {
+      throw new BadRequestException('Un entrenador no puede tener un entrenador asignado');
+    }
+
+    if (createUserDto.role === UserRole.ATHLETE && createUserDto.coachId) {
+      throw new BadRequestException('Un atleta no puede tener un coachId propio');
+    }
+
 
     // Crear una nueva instancia de usuario con los datos básicos
     const userData = {
@@ -33,9 +56,9 @@ export class UsersService {
       role: createUserDto.role,
       // No incluimos coachId aquí porque depende del rol
     };
-    
+
     const newUser = new this.userModel(userData);
-    
+
     // Generar token de activación
     const activationToken = crypto.randomBytes(32).toString('hex');
     newUser.activationToken = activationToken;
@@ -45,24 +68,25 @@ export class UsersService {
       // Usamos el método estático para generar el coachId
       newUser.coachId = generateCoachId();
     }
-    
+
     // Si el usuario es atleta y proporcionó un ID de entrenador, verificar y establecer relación
     if (createUserDto.role === UserRole.ATHLETE && createUserDto.coach) {
-      const coach = await this.userModel.findOne({ 
-        coachId: createUserDto.coach, 
-        role: UserRole.COACH 
+      const coach = await this.userModel.findOne({
+        coachId: createUserDto.coach,
+        role: UserRole.COACH,
       });
-      
+
       if (!coach) {
-        throw new NotFoundException('El ID de entrenador proporcionado no existe');
+        throw new NotFoundException(
+          'El ID de entrenador proporcionado no existe',
+        );
       }
-      
+
       // Establecer la referencia al entrenador
       newUser.coach = coach.coachId as string;
-      
+
       // Guardamos el usuario para obtener su ID
       await newUser.save();
-      
     } else {
       // Si no hay relación con un entrenador, simplemente guardamos el usuario
       await newUser.save();
@@ -78,6 +102,40 @@ export class UsersService {
     return newUser;
   }
 
+  async updateProfile(
+    userId: string,
+    update: { fullName?: string; email?: string },
+  ): Promise<UserDocument> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    if (user.status !== UserStatus.ACTIVE) {
+      throw new ForbiddenException('La cuenta debe estar activa para actualizar el perfil');
+    }
+
+    // Restringir cambios de campos sensibles (role, coachId, coach, status, password)
+    const { fullName, email } = update;
+
+    if (email && email !== user.email) {
+      // Verificar unicidad de email
+      const emailInUse = await this.userModel.findOne({ email });
+      if (emailInUse && emailInUse.id !== user.id) {
+        throw new ConflictException('El correo electrónico ya está en uso');
+      }
+      user.email = email;
+    }
+
+    if (typeof fullName === 'string' && fullName.trim().length > 0) {
+      user.fullName = fullName.trim();
+    }
+
+    await user.save();
+
+    return user;
+  }
+
   async activateAccount(token: string): Promise<void> {
     const user = await this.userModel.findOne({ activationToken: token });
     if (!user) {
@@ -85,14 +143,14 @@ export class UsersService {
     }
 
     user.status = UserStatus.ACTIVE;
-    user.activationToken = "";
+    user.activationToken = '';
     await user.save();
   }
 
   async findByEmail(email: string): Promise<UserDocument> {
     const user = await this.userModel.findOne({ email });
     if (!user) {
-      throw new NotFoundException('Usuario no encontrado')
+      throw new NotFoundException('Usuario no encontrado');
     }
     return user;
   }
@@ -101,7 +159,7 @@ export class UsersService {
     const coach = await this.userModel.findOne({ coachId });
     if (!coach) {
       throw new NotFoundException('Coach not found');
-    } 
+    }
     return coach;
   }
 
@@ -111,7 +169,7 @@ export class UsersService {
     if (!athlete || !athlete.coach) {
       return null;
     }
-    
+
     // Acceder al coachId a través de la referencia poblada
     return (athlete.coach as any).coachId;
   }
@@ -130,14 +188,14 @@ export class UsersService {
     await this.mailService.sendPasswordRecoveryEmail(
       user.email,
       user.fullName,
-      recoveryToken
+      recoveryToken,
     );
   }
 
   async resetPassword(token: string, newPassword: string): Promise<void> {
     const user = await this.userModel.findOne({
       passwordRecoveryToken: token,
-      passwordRecoveryExpires: { $gt: Date.now() }
+      passwordRecoveryExpires: { $gt: Date.now() },
     });
 
     if (!user) {
@@ -148,5 +206,141 @@ export class UsersService {
     user.passwordRecoveryToken = undefined;
     user.passwordRecoveryExpires = undefined;
     await user.save();
+  }
+
+  async getAthletes(coachId: string): Promise<UserDocument[]> {
+    return this.userModel.find({ coach: coachId, role: UserRole.ATHLETE }).exec();
+  }
+
+  async getAthleteDetails(athleteId: string, coachUserId: string): Promise<any> {
+    // Buscar al atleta
+    const athlete = await this.userModel.findById(athleteId);
+    if (!athlete) {
+      throw new NotFoundException('Atleta no encontrado');
+    }
+
+    if (athlete.role !== UserRole.ATHLETE) {
+      throw new BadRequestException('El usuario indicado no es un atleta');
+    }
+
+    // Verificar que el coach tenga permisos para ver este atleta
+    const coach = await this.userModel.findById(coachUserId);
+    if (!coach || coach.role !== UserRole.COACH) {
+      throw new ForbiddenException('No autorizado');
+    }
+
+    if (athlete.coach !== coach.coachId) {
+      throw new ForbiddenException('Solo puedes ver detalles de tus propios atletas');
+    }
+
+    // Calcular estadísticas básicas (usar la fecha de creación del documento)
+    const joinDate = (athlete as any).createdAt || new Date();
+    const daysSinceJoin = Math.floor((Date.now() - joinDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    // Retornar detalles del atleta
+    return {
+      _id: athlete._id,
+      fullName: athlete.fullName,
+      email: athlete.email,
+      role: athlete.role,
+      status: athlete.status,
+      coach: athlete.coach,
+      joinDate: joinDate,
+      daysSinceJoin,
+      stats: {
+        totalTrainingPlans: 0, // Se calculará en el frontend o se puede agregar lógica aquí
+        activePlans: 0,
+        completedSessions: 0,
+      }
+    };
+  }
+
+  async findAthleteByEmail(email: string): Promise<UserDocument | null> {
+    const athlete = await this.userModel.findOne({ 
+      email,
+      role: UserRole.ATHLETE,
+      status: UserStatus.ACTIVE 
+    });
+    return athlete;
+  }
+
+  async linkCoachToAthlete(
+    athleteId: string,
+    coachUserId: string,
+  ): Promise<UserDocument> {
+    // Buscar al atleta
+    const athlete = await this.userModel.findById(athleteId);
+    if (!athlete) {
+      throw new NotFoundException('Atleta no encontrado');
+    }
+
+    if (athlete.role !== UserRole.ATHLETE) {
+      throw new BadRequestException('El usuario indicado no es un atleta');
+    }
+
+    if (athlete.status !== UserStatus.ACTIVE) {
+      throw new BadRequestException('El atleta debe tener una cuenta activa');
+    }
+
+    if (athlete.coach) {
+      throw new BadRequestException('El atleta ya tiene un entrenador asignado');
+    }
+
+    // Buscar al coach
+    const coach = await this.userModel.findById(coachUserId);
+    if (!coach || coach.role !== UserRole.COACH) {
+      throw new NotFoundException('Entrenador no encontrado');
+    }
+
+    if (coach.status !== UserStatus.ACTIVE) {
+      throw new BadRequestException('El entrenador debe tener una cuenta activa');
+    }
+
+    if (!coach.coachId) {
+      throw new BadRequestException('El entrenador no tiene un ID de entrenador válido');
+    }
+
+    // Vincular el atleta al coach
+    athlete.coach = coach.coachId;
+    await athlete.save();
+    return athlete;
+  }
+
+  async unlinkCoachFromAthlete(
+    athleteId: string,
+    requester: { userId: string; role: UserRole },
+  ): Promise<UserDocument> {
+    const athlete = await this.userModel.findById(athleteId);
+    if (!athlete) {
+      throw new NotFoundException('Atleta no encontrado');
+    }
+
+    if (athlete.role !== UserRole.ATHLETE) {
+      throw new BadRequestException('El usuario indicado no es un atleta');
+    }
+
+    if (!athlete.coach) {
+      throw new BadRequestException('El atleta no tiene entrenador asignado');
+    }
+
+    if (requester.role === UserRole.ATHLETE) {
+      if (athlete.id !== requester.userId) {
+        throw new ForbiddenException('No autorizado para desvincular a este atleta');
+      }
+    } else if (requester.role === UserRole.COACH) {
+      const coach = await this.userModel.findById(requester.userId);
+      if (!coach || coach.role !== UserRole.COACH) {
+        throw new ForbiddenException('No autorizado');
+      }
+      if (athlete.coach !== coach.coachId) {
+        throw new ForbiddenException('Solo el entrenador asignado puede desvincular a este atleta');
+      }
+    } else {
+      throw new ForbiddenException('Rol no autorizado');
+    }
+
+    athlete.coach = undefined;
+    await athlete.save();
+    return athlete;
   }
 }

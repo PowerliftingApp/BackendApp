@@ -6,6 +6,8 @@ import { Document, Schema as MongooseSchema } from 'mongoose';
 @Schema()
 export class PerformedSetSchema {
   @Prop({ required: true })
+  setId: string;
+  @Prop({ required: true })
   setNumber: number;
   @Prop({ default: null })
   repsPerformed: number;
@@ -16,6 +18,8 @@ export class PerformedSetSchema {
 }
 @Schema()
 export class ExerciseSchema {
+  @Prop({ required: true })
+  exerciseId: string;
   @Prop({ required: true })
   name: string; 
   @Prop({ required: true })
@@ -30,6 +34,17 @@ export class ExerciseSchema {
   rm: number;
   @Prop({ default: null })
   notes: string;
+  @Prop({ default: null })
+  weight: number;
+  // Feedback del atleta
+  @Prop({ default: false })
+  completed?: boolean;
+  @Prop({ default: null })
+  performanceComment?: string; // comentarios sobre superar/no alcanzar RPE/RIR/RM
+  @Prop({ default: null })
+  mediaUrl?: string; // imagen o video (servido estático)
+  @Prop({ default: null })
+  athleteNotes?: string; // notas adicionales
   @Prop({ required: true })
   performedSets: [PerformedSetSchema];
 }
@@ -38,19 +53,24 @@ export class ExerciseSchema {
 @Schema()
 export class SessionSchema {
   @Prop({ required: true })
+  sessionId: string;
+  @Prop({ required: true })
   sessionName: string;
   @Prop({ required: true })
   date: string;
+  // Notas generales de la sesión
+  @Prop({ default: null })
+  sessionNotes?: string;
   @Prop({ required: true })
   exercises: [ExerciseSchema];
 }
 
 @Schema({ timestamps: true })
 export class TrainingPlan {
-  @Prop({ required: true })
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   athleteId: string;
 
-  @Prop({ required: true, unique: true })
+  @Prop({ required: true, index: true })
   coachId: string;
 
   @Prop({ required: true })
@@ -64,9 +84,18 @@ export class TrainingPlan {
 
   @Prop({ required: true })
   sessions: SessionSchema[];
+
+  @Prop({ default: false })
+  isTemplate: boolean;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Template' })
+  templateId?: string;
 }
 
 export type TrainingPlanDocument = TrainingPlan & Document;
 export const TrainingPlanSchema = SchemaFactory.createForClass(TrainingPlan);
+
+// Eliminar el índice único existente
+TrainingPlanSchema.index({ coachId: 1 }, { unique: false });
 
 

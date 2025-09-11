@@ -1,5 +1,6 @@
-import { IsString, IsDate, IsArray, IsNotEmpty, ValidateNested, IsOptional, IsBoolean, IsMongoId } from 'class-validator';
+import { IsString, IsArray, IsNotEmpty, ValidateNested, IsEnum, IsOptional, IsMongoId, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
+import { TemplateType, TemplatePredefinedCategory } from '../schemas/template.schema';
 
 class PerformedSetDto {
   @IsNotEmpty()
@@ -8,6 +9,7 @@ class PerformedSetDto {
   repsPerformed?: number;
   loadUsed?: number;
   measureAchieved?: number;
+  notes?: string;
 }
 
 class ExerciseDto {
@@ -47,26 +49,29 @@ class SessionDto {
   exercises: ExerciseDto[];
 }
 
-export class CreateTrainingPlanDto {
-  @IsString()
-  @IsNotEmpty()
-  athleteId: string;
-
-  @IsString()
-  @IsNotEmpty()
-  coachId: string;
-
+export class CreateTemplateDto {
   @IsString()
   @IsNotEmpty()
   name: string;
 
   @IsString()
   @IsNotEmpty()
-  startDate: string;
+  description: string;
 
-  @IsString()
-  @IsNotEmpty()
-  endDate: string;
+  @IsEnum(TemplateType)
+  type: TemplateType;
+
+  @IsOptional()
+  @IsEnum(TemplatePredefinedCategory)
+  predefinedCategory?: TemplatePredefinedCategory;
+
+  @IsOptional()
+  @IsMongoId()
+  createdBy?: string;
+
+  @IsOptional()
+  @IsMongoId()
+  originalPlanId?: string;
 
   @IsArray()
   @ValidateNested({ each: true })
@@ -75,9 +80,5 @@ export class CreateTrainingPlanDto {
 
   @IsOptional()
   @IsBoolean()
-  isTemplate?: boolean;
-
-  @IsOptional()
-  @IsMongoId()
-  templateId?: string;
+  isActive?: boolean;
 }
