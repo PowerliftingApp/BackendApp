@@ -1,4 +1,4 @@
-import { IsString, IsDate, IsArray, IsNotEmpty, ValidateNested, IsOptional, IsBoolean, IsMongoId } from 'class-validator';
+import { IsString, IsDate, IsArray, IsNotEmpty, ValidateNested, IsOptional, IsBoolean, IsMongoId, IsDateString } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class PerformedSetDto {
@@ -38,7 +38,7 @@ class SessionDto {
   @IsNotEmpty()
   sessionName: string;
 
-  @IsString()
+  @IsDateString()
   @IsNotEmpty()
   date: string;
 
