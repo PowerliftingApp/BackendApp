@@ -165,13 +165,12 @@ export class UsersService {
 
   // Método para obtener el ID de entrenador de un atleta
   async getCoachIdForAthlete(athleteId: string): Promise<string | null> {
-    const athlete = await this.userModel.findById(athleteId).populate('coach');
+    const athlete = await this.userModel.findById(athleteId).lean();
     if (!athlete || !athlete.coach) {
       return null;
     }
-
-    // Acceder al coachId a través de la referencia poblada
-    return (athlete.coach as any).coachId;
+    // En este modelo, el campo `coach` almacena el coachId (string)
+    return (athlete as any).coach as string;
   }
 
   async requestPasswordRecovery(email: string): Promise<void> {

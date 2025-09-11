@@ -18,8 +18,24 @@ export class TemplatesService {
 
   // Crear una nueva plantilla
   async create(createTemplateDto: CreateTemplateDto): Promise<Template> {
+    const normalizedSessions = (createTemplateDto.sessions || []).map((s: any) => ({
+      sessionName: s.sessionName,
+      date: s.date,
+      exercises: (s.exercises || []).map((e: any) => ({
+        name: e.name,
+        sets: e.sets,
+        reps: e.reps,
+        rpe: e.rpe ?? null,
+        rir: e.rir ?? null,
+        rm: e.rm ?? null,
+        notes: e.notes ?? null,
+        performedSets: buildPerformedSetsForTemplate(e)
+      }))
+    }));
+
     const createdTemplate = new this.templateModel({
       ...createTemplateDto,
+      sessions: normalizedSessions,
       usageCount: 0,
       isActive: createTemplateDto.isActive ?? true
     });
@@ -80,8 +96,28 @@ export class TemplatesService {
 
   // Actualizar una plantilla
   async update(id: string, updateTemplateDto: UpdateTemplateDto): Promise<Template> {
+    const normalized: any = {
+      ...updateTemplateDto,
+    };
+    if (Array.isArray(updateTemplateDto.sessions)) {
+      normalized.sessions = updateTemplateDto.sessions.map((s: any) => ({
+        sessionName: s.sessionName,
+        date: s.date,
+        exercises: (s.exercises || []).map((e: any) => ({
+          name: e.name,
+          sets: e.sets,
+          reps: e.reps,
+          rpe: e.rpe ?? null,
+          rir: e.rir ?? null,
+          rm: e.rm ?? null,
+          notes: e.notes ?? null,
+          performedSets: buildPerformedSetsForTemplate(e)
+        }))
+      }));
+    }
+
     const updatedTemplate = await this.templateModel
-      .findByIdAndUpdate(id, updateTemplateDto, { new: true })
+      .findByIdAndUpdate(id, normalized, { new: true })
       .exec();
     
     if (!updatedTemplate) {
@@ -141,7 +177,20 @@ export class TemplatesService {
       type: TemplateType.USER_CREATED,
       createdBy,
       originalPlanId: planId,
-      sessions: trainingPlan.sessions,
+      sessions: (trainingPlan.sessions as any[]).map((s: any) => ({
+        sessionName: s.sessionName,
+        date: s.date,
+        exercises: (s.exercises || []).map((e: any) => ({
+          name: e.name,
+          sets: e.sets,
+          reps: e.reps,
+          rpe: e.rpe ?? null,
+          rir: e.rir ?? null,
+          rm: e.rm ?? null,
+          notes: e.notes ?? null,
+          performedSets: buildPerformedSetsForTemplate(e),
+        })),
+      })),
       isActive: true
     };
 
@@ -565,4 +614,22 @@ export class TemplatesService {
     // Crear las plantillas predefinidas
     await this.templateModel.insertMany(predefinedTemplates);
   }
+}
+
+// Helpers locales para normalizar performedSets en plantillas (no usan ids lógicos)
+function buildPerformedSetsForTemplate(exercise: any) {
+  const totalSets = Number(exercise?.sets) || 0;
+  const existing = Array.isArray(exercise?.performedSets) ? exercise.performedSets : [];
+  const normalized: any[] = [];
+  for (let i = 0; i < totalSets; i++) {
+    const src = existing[i] || {};
+    normalized.push({
+      setNumber: src.setNumber ?? i + 1,
+      repsPerformed: typeof src.repsPerformed === 'number' ? src.repsPerformed : null,
+      loadUsed: typeof src.loadUsed === 'number' ? src.loadUsed : null,
+      measureAchieved: typeof src.measureAchieved === 'number' ? src.measureAchieved : null,
+      notes: typeof src.notes === 'string' ? src.notes : null,
+    });
+  }
+  return normalized;
 }

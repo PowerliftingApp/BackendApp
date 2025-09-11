@@ -29,7 +29,8 @@ class ExerciseDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => PerformedSetDto)
-  performedSets: PerformedSetDto[];
+  @IsOptional()
+  performedSets?: PerformedSetDto[];
 }
 
 class SessionDto {

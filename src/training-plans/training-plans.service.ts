@@ -27,28 +27,25 @@ export class TrainingPlansService {
         sessionName: s.sessionName,
         date: s.date,
         sessionNotes: s.sessionNotes ?? null,
-        exercises: (s.exercises || []).map((e: any) => ({
-          exerciseId: e.exerciseId || this.generateId('E'),
-          name: e.name,
-          sets: e.sets,
-          reps: e.reps,
-          rpe: e.rpe ?? null,
-          rir: e.rir ?? null,
-          rm: e.rm ?? null,
-          notes: e.notes ?? null,
-          weight: e.weight ?? null,
-          completed: e.completed ?? false,
-          performanceComment: e.performanceComment ?? null,
-          mediaUrl: e.mediaUrl ?? null,
-          athleteNotes: e.athleteNotes ?? null,
-          performedSets: (e.performedSets || []).map((ps: any, idx: number) => ({
-            setId: ps.setId || this.generateId('PS'),
-            setNumber: ps.setNumber ?? idx + 1,
-            repsPerformed: ps.repsPerformed ?? null,
-            loadUsed: ps.loadUsed ?? null,
-            measureAchieved: ps.measureAchieved ?? null,
-          })),
-        })),
+        exercises: (s.exercises || []).map((e: any) => {
+          const normalizedPerformedSets = buildPerformedSetsFromExercise(e, (p: string) => this.generateId(p));
+          return {
+            exerciseId: e.exerciseId || this.generateId('E'),
+            name: e.name,
+            sets: e.sets,
+            reps: e.reps,
+            rpe: e.rpe ?? null,
+            rir: e.rir ?? null,
+            rm: e.rm ?? null,
+            notes: e.notes ?? null,
+            weight: e.weight ?? null,
+            completed: e.completed ?? false,
+            performanceComment: e.performanceComment ?? null,
+            mediaUrl: e.mediaUrl ?? null,
+            athleteNotes: e.athleteNotes ?? null,
+            performedSets: normalizedPerformedSets,
+          };
+        }),
       })),
     } as any;
 
@@ -114,7 +111,7 @@ export class TrainingPlansService {
     if (sessionIndex === -1) throw new NotFoundException('Sesión no encontrada');
 
     (plan.sessions[sessionIndex] as any).sessionNotes = sessionNotes ?? null;
-
+    plan.markModified('sessions');
     await plan.save();
     return plan;
   }
@@ -195,41 +192,50 @@ export class TrainingPlansService {
   }
 
   async update(id: string, updateTrainingPlanDto: UpdateTrainingPlanDto): Promise<TrainingPlan> {
-    // En updates, completar ids faltantes y weight si no está
-    const withIds = {
-      ...updateTrainingPlanDto,
-      sessions: (updateTrainingPlanDto.sessions || []).map((s: any) => ({
-        sessionId: s.sessionId || this.generateId('S'),
-        sessionName: s.sessionName,
-        date: s.date,
-        sessionNotes: s.sessionNotes ?? null,
-        exercises: (s.exercises || []).map((e: any) => ({
-          exerciseId: e.exerciseId || this.generateId('E'),
-          name: e.name,
-          sets: e.sets,
-          reps: e.reps,
-          rpe: e.rpe ?? null,
-          rir: e.rir ?? null,
-          rm: e.rm ?? null,
-          notes: e.notes ?? null,
-          weight: e.weight ?? null,
-          completed: e.completed ?? false,
-          performanceComment: e.performanceComment ?? null,
-          mediaUrl: e.mediaUrl ?? null,
-          athleteNotes: e.athleteNotes ?? null,
-          performedSets: (e.performedSets || []).map((ps: any, idx: number) => ({
-            setId: ps.setId || this.generateId('PS'),
-            setNumber: ps.setNumber ?? idx + 1,
-            repsPerformed: ps.repsPerformed ?? null,
-            loadUsed: ps.loadUsed ?? null,
-            measureAchieved: ps.measureAchieved ?? null,
-          })),
-        })),
-      })),
+    // En updates, completar ids faltantes y ajustar performedSets al número de sets
+    const existingPlan = await this.trainingPlanModel.findById(id).exec();
+    if (!existingPlan) {
+      throw new NotFoundException(`Training plan con ID ${id} no encontrado`);
+    }
+
+    const merged = {
+      sessions: (updateTrainingPlanDto.sessions || []).map((s: any) => {
+        const existingSession: any = (existingPlan.sessions as any[]).find((xs: any) => String((xs as any)._id ?? xs.sessionId ?? '') === String(s.sessionId)) || {};
+        return {
+          sessionId: s.sessionId || existingSession.sessionId || this.generateId('S'),
+          sessionName: s.sessionName,
+          date: s.date,
+          sessionNotes: s.sessionNotes ?? (existingSession.sessionNotes ?? null),
+          exercises: (s.exercises || []).map((e: any) => {
+            const existingExercise: any = (existingSession.exercises || []).find((xe: any) => String((xe as any)._id ?? xe.exerciseId ?? '') === String(e.exerciseId)) || {};
+            // Construir performedSets preservando por setId si existen, y generando faltantes
+            const normalized = buildPerformedSetsFromExercise({
+              ...e,
+              performedSets: (e.performedSets && e.performedSets.length ? e.performedSets : existingExercise.performedSets) || [],
+            }, (p: string) => this.generateId(p));
+            return {
+              exerciseId: e.exerciseId || existingExercise.exerciseId || this.generateId('E'),
+              name: e.name,
+              sets: e.sets,
+              reps: e.reps,
+              rpe: e.rpe ?? (existingExercise.rpe ?? null),
+              rir: e.rir ?? (existingExercise.rir ?? null),
+              rm: e.rm ?? (existingExercise.rm ?? null),
+              notes: e.notes ?? (existingExercise.notes ?? null),
+              weight: e.weight ?? (existingExercise.weight ?? null),
+              completed: typeof e.completed === 'boolean' ? e.completed : (existingExercise.completed ?? false),
+              performanceComment: e.performanceComment ?? (existingExercise.performanceComment ?? null),
+              mediaUrl: e.mediaUrl ?? (existingExercise.mediaUrl ?? null),
+              athleteNotes: e.athleteNotes ?? (existingExercise.athleteNotes ?? null),
+              performedSets: normalized,
+            };
+          })
+        };
+      })
     } as any;
 
     const updatedPlan = await this.trainingPlanModel
-      .findByIdAndUpdate(id, withIds, { new: true })
+      .findByIdAndUpdate(id, merged, { new: true })
       .exec();
     if (!updatedPlan) {
       throw new NotFoundException(`Training plan con ID ${id} no encontrado`);
@@ -303,3 +309,25 @@ declare module './training-plans.service' {
 (TrainingPlansService as any).prototype.generateId = function(prefix: string): string {
   return `${prefix}-${rand()}`;
 };
+
+// Helper: asegura que existan 'sets' performed vacíos acorde a e.sets.
+// - Si el DTO trae algunos performedSets, se respetan y se completan hasta 'sets'.
+// - Si no trae ninguno, se generan todos vacíos.
+function buildPerformedSetsFromExercise(exercise: any, genId: (prefix: string) => string) {
+  const totalSets = Number(exercise?.sets) || 0;
+  const existing = Array.isArray(exercise?.performedSets) ? exercise.performedSets : [];
+
+  const normalized: any[] = [];
+  for (let i = 0; i < totalSets; i++) {
+    const src = existing[i] || {};
+    normalized.push({
+      setId: src.setId || genId('PS'),
+      setNumber: src.setNumber ?? i + 1,
+      repsPerformed: typeof src.repsPerformed === 'number' ? src.repsPerformed : null,
+      loadUsed: typeof src.loadUsed === 'number' ? src.loadUsed : null,
+      measureAchieved: typeof src.measureAchieved === 'number' ? src.measureAchieved : null,
+      completed: typeof src.completed === 'boolean' ? src.completed : false,
+    });
+  }
+  return normalized;
+}

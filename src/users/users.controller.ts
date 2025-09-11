@@ -55,6 +55,28 @@ export class UsersController {
     return req.user;
   }
 
+  // Obtener info básica del coach asignado a un atleta (autenticado)
+  @UseGuards(JwtAuthGuard)
+  @Get('me/coach')
+  async getMyCoach(@Req() req) {
+    if (req.user.role !== 'athlete') {
+      throw new Error('Solo los atletas pueden consultar su entrenador');
+    }
+    const coachId = await this.usersService.getCoachIdForAthlete(req.user.userId);
+    if (!coachId) {
+      return { coach: null };
+    }
+    const coach = await this.usersService.findByCoachId(coachId);
+    return {
+      coach: {
+        _id: coach._id,
+        fullName: coach.fullName,
+        email: coach.email,
+        coachId: coach.coachId,
+      }
+    };
+  }
+
   @UseGuards(JwtAuthGuard)
   @Put('profile')
   async updateProfile(@Req() req, @Body() updateUserDto: UpdateUserDto) {
