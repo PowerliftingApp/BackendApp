@@ -15,6 +15,8 @@ export class PerformedSetSchema {
   loadUsed: number;
   @Prop({ default: null })
   measureAchieved: number;
+  @Prop({ default: false })
+  completed?: boolean;
 }
 @Schema()
 export class ExerciseSchema {
@@ -61,6 +63,8 @@ export class SessionSchema {
   // Notas generales de la sesión
   @Prop({ default: null })
   sessionNotes?: string;
+  @Prop({ default: false })
+  completed?: boolean;
   @Prop({ required: true })
   exercises: [ExerciseSchema];
 }

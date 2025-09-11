@@ -8,6 +8,7 @@ import { TemplatesService } from '../templates/templates.service';
 import { CreateTemplateFromPlanDto } from '../templates/dto/create-template-from-plan.dto';
 import { SubmitExerciseFeedbackDto } from './dto/submit-exercise-feedback.dto';
 import { UpdateSessionNotesDto } from './dto/update-session-notes.dto';
+import { SubmitPerformedSetsDto } from './dto/submit-performed-sets.dto';
 
 @Injectable()
 export class TrainingPlansService {
@@ -66,7 +67,7 @@ export class TrainingPlansService {
     const { planId, sessionId, exerciseId, completed, performanceComment, athleteNotes, athleteId, mediaUrl } = params;
 
     const plan = await this.trainingPlanModel.findById(planId).exec();
-    if (!plan) throw new NotFoundException(`Training plan with ID ${planId} not found`);
+    if (!plan) throw new NotFoundException(`Training plan con ID ${planId} no encontrado`);
 
     if (String(plan.athleteId) !== String(athleteId)) {
       throw new NotFoundException('No autorizado para actualizar este plan');
@@ -80,19 +81,30 @@ export class TrainingPlansService {
     if (exerciseIndex === -1) throw new NotFoundException('Ejercicio no encontrado');
 
     const exercise: any = plan.sessions[sessionIndex].exercises[exerciseIndex];
-    if (typeof completed === 'boolean') exercise.completed = completed;
+
+    console.log('completed', completed);
+    
+    if (typeof completed === 'boolean') {
+      exercise.completed = completed;
+    } else if (typeof completed === 'string') {
+      if (completed === 'true') exercise.completed = true;
+      else if (completed === 'false') exercise.completed = false;
+    }
     if (typeof performanceComment === 'string') exercise.performanceComment = performanceComment;
     if (typeof athleteNotes === 'string') exercise.athleteNotes = athleteNotes;
     if (mediaUrl) exercise.mediaUrl = mediaUrl;
 
+    plan.markModified('sessions');
     await plan.save();
+    // Recalcular estado de sesión
+    this.recalculateCompletion(plan, sessionIndex);
     return plan;
   }
 
   async updateSessionNotes(params: UpdateSessionNotesDto & { athleteId: string }): Promise<TrainingPlan> {
     const { planId, sessionId, sessionNotes, athleteId } = params;
     const plan = await this.trainingPlanModel.findById(planId).exec();
-    if (!plan) throw new NotFoundException(`Training plan with ID ${planId} not found`);
+    if (!plan) throw new NotFoundException(`Training plan con ID ${planId} no encontrado`);
 
     if (String(plan.athleteId) !== String(athleteId)) {
       throw new NotFoundException('No autorizado para actualizar este plan');
@@ -107,13 +119,56 @@ export class TrainingPlansService {
     return plan;
   }
 
+  async submitPerformedSets(params: SubmitPerformedSetsDto & { athleteId: string }): Promise<TrainingPlan> {
+    const { planId, sessionId, exerciseId, sets, athleteId } = params;
+    const plan = await this.trainingPlanModel.findById(planId).exec();
+    if (!plan) throw new NotFoundException(`Training plan con ID ${planId} no encontrado`);
+    if (String(plan.athleteId) !== String(athleteId)) {
+      throw new NotFoundException('No autorizado para actualizar este plan');
+    }
+
+    const sIdx = plan.sessions.findIndex((s: any) => String((s as any)._id ?? s.sessionId ?? '') === String(sessionId));
+    if (sIdx === -1) throw new NotFoundException('Sesión no encontrada');
+    const eIdx = (plan.sessions[sIdx].exercises as any[]).findIndex((e: any) => String((e as any)._id ?? e.exerciseId ?? '') === String(exerciseId));
+    if (eIdx === -1) throw new NotFoundException('Ejercicio no encontrado');
+
+    const exercise: any = plan.sessions[sIdx].exercises[eIdx];
+    // Actualizar sets por setId
+    for (const input of sets) {
+      const idx = (exercise.performedSets as any[]).findIndex((ps: any) => String(ps.setId) === String(input.setId));
+      if (idx !== -1) {
+        const target = exercise.performedSets[idx] as any;
+        if (typeof input.completed === 'boolean') target.completed = input.completed;
+        if (typeof input.repsPerformed !== 'undefined') target.repsPerformed = input.repsPerformed;
+        if (typeof input.loadUsed !== 'undefined') target.loadUsed = input.loadUsed;
+        if (typeof input.measureAchieved !== 'undefined') target.measureAchieved = input.measureAchieved;
+      }
+    }
+
+    // Recalcular completado del ejercicio: todos los sets completados
+    const setsArr = (exercise.performedSets as any[]);
+    exercise.completed = setsArr.length > 0 && setsArr.every((ps: any) => !!ps.completed);
+
+    plan.markModified('sessions');
+    await plan.save();
+    this.recalculateCompletion(plan, sIdx);
+    return plan;
+  }
+
+  private recalculateCompletion(plan: any, sessionIndex: number) {
+    const session = plan.sessions[sessionIndex];
+    // Sesión completada si todos los ejercicios completed === true y hay al menos uno
+    const exercises = (session.exercises as any[]);
+    session.completed = exercises.length > 0 && exercises.every((e: any) => !!e.completed);
+  }
+
   async findOne(id: string): Promise<TrainingPlan> {
     const plan = await this.trainingPlanModel
       .findById(id)
       .populate('athleteId', 'fullName email')
       .exec();
     if (!plan) {
-      throw new NotFoundException(`Training plan with ID ${id} not found`);
+      throw new NotFoundException(`Training plan con ID ${id} no encontrado`);
     }
     return plan;
   }
@@ -177,7 +232,7 @@ export class TrainingPlansService {
       .findByIdAndUpdate(id, withIds, { new: true })
       .exec();
     if (!updatedPlan) {
-      throw new NotFoundException(`Training plan with ID ${id} not found`);
+      throw new NotFoundException(`Training plan con ID ${id} no encontrado`);
     }
     return updatedPlan;
   }
@@ -185,7 +240,7 @@ export class TrainingPlansService {
   async remove(id: string): Promise<void> {
     const result = await this.trainingPlanModel.deleteOne({ _id: id }).exec();
     if (result.deletedCount === 0) {
-      throw new NotFoundException(`Training plan with ID ${id} not found`);
+      throw new NotFoundException(`Training plan con ID ${id} no encontrado`);
     }
   }
 
@@ -219,7 +274,7 @@ export class TrainingPlansService {
       .exec();
     
     if (!updatedPlan) {
-      throw new NotFoundException(`Training plan with ID ${id} not found`);
+      throw new NotFoundException(`Training plan con ID ${id} no encontrado`);
     }
     
     return updatedPlan;

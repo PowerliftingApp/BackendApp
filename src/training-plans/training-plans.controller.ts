@@ -5,6 +5,7 @@ import { UpdateTrainingPlanDto } from './dto/update-training-plan.dto';
 import { CreateTemplateFromPlanDto } from '../templates/dto/create-template-from-plan.dto';
 import { SubmitExerciseFeedbackDto } from './dto/submit-exercise-feedback.dto';
 import { UpdateSessionNotesDto } from './dto/update-session-notes.dto';
+import { SubmitPerformedSetsDto } from './dto/submit-performed-sets.dto';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
 
@@ -90,6 +91,19 @@ export class TrainingPlansController {
     @Req() req,
   ) {
     return this.trainingPlansService.updateSessionNotes({
+      ...body,
+      athleteId: req.user.userId,
+    });
+  }
+
+  // Actualizar performed sets de un ejercicio
+  @UseGuards(JwtAuthGuard)
+  @Patch('feedback/exercise-sets')
+  async submitPerformedSets(
+    @Body() body: SubmitPerformedSetsDto,
+    @Req() req,
+  ) {
+    return this.trainingPlansService.submitPerformedSets({
       ...body,
       athleteId: req.user.userId,
     });
