@@ -50,10 +50,9 @@ export class User {
   coachId?: string;
 
   // Solo para atletas: referencia a su entrenador
-  @Prop({ 
+  @Prop({
     ref: 'User',
-    unique: true,
-    sparse: true, 
+    sparse: true,
     required: false,
     // Añadimos este validador para asegurarnos de que solo los atletas tengan coach
     validate: {
@@ -73,6 +72,10 @@ export class User {
 
   @Prop()
   passwordRecoveryExpires?: Date;
+
+  // Foto de perfil opcional para ambos roles
+  @Prop({ required: false })
+  profilePicture?: string;
 }
 
 export type UserDocument = User & Document & UserMethods;

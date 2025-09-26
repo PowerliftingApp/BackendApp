@@ -55,6 +55,7 @@ export class UsersService {
       password: createUserDto.password,
       role: createUserDto.role,
       // No incluimos coachId aquí porque depende del rol
+      status: UserStatus.ACTIVE, // Activar por defecto
     };
 
     const newUser = new this.userModel(userData);
@@ -131,6 +132,25 @@ export class UsersService {
       user.fullName = fullName.trim();
     }
 
+    await user.save();
+
+    return user;
+  }
+
+  async updateProfilePicture(
+    userId: string,
+    profilePictureUrl: string | undefined,
+  ): Promise<UserDocument> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    if (user.status !== UserStatus.ACTIVE) {
+      throw new ForbiddenException('La cuenta debe estar activa para actualizar la foto de perfil');
+    }
+
+    user.profilePicture = profilePictureUrl;
     await user.save();
 
     return user;
@@ -252,6 +272,14 @@ export class UsersService {
         completedSessions: 0,
       }
     };
+  }
+
+  async getAthleteId(email: string): Promise<string> {
+    const athlete = await this.userModel.findOne({ email, role: UserRole.ATHLETE });
+    if (!athlete) {
+      throw new NotFoundException('Atleta no encontrado');
+    }
+    return athlete._id as string;
   }
 
   async findAthleteByEmail(email: string): Promise<UserDocument | null> {

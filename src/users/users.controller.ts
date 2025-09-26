@@ -8,11 +8,16 @@ import {
   Req,
   Delete,
   Put,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import * as multer from 'multer';
+import * as path from 'path';
 
 @Controller('users')
 export class UsersController {
@@ -33,6 +38,12 @@ export class UsersController {
         coach: user.coach,
       },
     };
+  }
+
+  @Get('get-userid/:email')
+  async getUserId(@Param('email') email: string) {
+    const athleteId = await this.usersService.getAthleteId(email);
+    return { athleteId };
   }
 
   @Get('activate/:token')
@@ -90,6 +101,49 @@ export class UsersController {
         role: updated.role,
         coachId: updated.coachId,
         coach: updated.coach,
+        profilePicture: updated.profilePicture,
+      },
+    };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('profile-picture')
+  @UseInterceptors(FileInterceptor('profilePicture', {
+    storage: multer.diskStorage({
+      destination: path.join(process.cwd(), 'uploads'),
+      filename: (_req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        const ext = file.originalname.split('.').pop();
+        cb(null, `profile-${uniqueSuffix}.${ext}`);
+      },
+    }),
+    limits: {
+      fileSize: 5 * 1024 * 1024, // 5MB para fotos de perfil
+    },
+    fileFilter: (_req, file, cb) => {
+      if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Solo se permiten archivos de imagen'), false);
+      }
+    },
+  }))
+  async updateProfilePicture(
+    @UploadedFile() file: any,
+    @Req() req,
+  ) {
+    const profilePictureUrl = file ? `/uploads/${file.filename}` : undefined;
+    const updated = await this.usersService.updateProfilePicture(req.user.userId, profilePictureUrl);
+    return {
+      message: 'Foto de perfil actualizada correctamente',
+      user: {
+        id: updated._id,
+        email: updated.email,
+        fullName: updated.fullName,
+        role: updated.role,
+        coachId: updated.coachId,
+        coach: updated.coach,
+        profilePicture: updated.profilePicture,
       },
     };
   }
@@ -126,10 +180,55 @@ export class UsersController {
         role: user.role,
         coachId: user.coachId,
         coach: user.coach,
+        joinDate: (user as any).createdAt,
+        status: (user as any).status,
       };
     });
 
     return athletes;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('dashboard/:coachId')
+  async getDashboardData(@Param('coachId') coachId: string, @Req() req) {
+    // Solo el coach dueño puede consultar su dashboard
+    if (req.user.role !== 'coach' || req.user.coachId !== coachId) {
+      throw new Error('No autorizado');
+    }
+
+    const coach = await this.usersService.findByCoachId(coachId);
+    if (!coach) {
+      throw new Error('Coach no encontrado');
+    }
+
+    const athletes = await this.usersService.getAthletes(coachId);
+
+    const totalAthletes = athletes.length;
+    const activeAthletes = athletes.filter((a: any) => a.status === 'active').length;
+
+    // Top 5 atletas recientes con progreso básico (puede refinarse luego)
+    const athletesWithProgress = athletes.slice(0, 5).map((athlete: any) => {
+      const joinDate = (athlete as any).createdAt || new Date();
+      const daysSinceJoin = Math.floor((Date.now() - new Date(joinDate).getTime()) / (1000 * 60 * 60 * 24));
+      const progress = Math.min(Math.max(Math.floor((daysSinceJoin / 30) * 10), 0), 100);
+      return {
+        _id: athlete._id,
+        fullName: athlete.fullName,
+        email: athlete.email,
+        joinDate,
+        status: athlete.status,
+        progress,
+      };
+    });
+
+    return {
+      summary: {
+        totalAthletes,
+        activeAthletes,
+        inactiveAthletes: Math.max(totalAthletes - activeAthletes, 0),
+      },
+      athletes: athletesWithProgress,
+    };
   }
 
   @UseGuards(JwtAuthGuard)

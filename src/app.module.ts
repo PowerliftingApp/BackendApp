@@ -12,6 +12,10 @@ import { TrainingPlansModule } from './training-plans/training-plans.module';
 
 @Module({
   imports: [
+    ServeStaticModule.forRoot({
+      rootPath: join(process.cwd(), 'uploads'),
+      serveRoot: '/uploads',
+    }),
     ConfigModule.forRoot({
       isGlobal: true,
     }),
@@ -26,10 +30,6 @@ import { TrainingPlansModule } from './training-plans/training-plans.module';
     AuthModule,
     MailModule,
     TrainingPlansModule,
-    ServeStaticModule.forRoot({
-      rootPath: join(process.cwd(), 'uploads'),
-      serveRoot: '/uploads',
-    }),
   ],
   controllers: [AppController],
   providers: [AppService],
