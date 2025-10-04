@@ -91,10 +91,10 @@ export class TrainingPlansService {
     if (typeof athleteNotes === 'string') exercise.athleteNotes = athleteNotes;
     if (mediaUrl) exercise.mediaUrl = mediaUrl;
 
+    // Recalcular estado de la sesión (todas las exercises completadas => sesión completada)
+    this.recalculateCompletion(plan, sessionIndex);
     plan.markModified('sessions');
     await plan.save();
-    // Recalcular estado de sesión
-    this.recalculateCompletion(plan, sessionIndex);
     return plan;
   }
 
@@ -146,9 +146,10 @@ export class TrainingPlansService {
     const setsArr = (exercise.performedSets as any[]);
     exercise.completed = setsArr.length > 0 && setsArr.every((ps: any) => !!ps.completed);
 
+    // Recalcular estado de la sesión tras actualizar sets/ejercicio
+    this.recalculateCompletion(plan, sIdx);
     plan.markModified('sessions');
     await plan.save();
-    this.recalculateCompletion(plan, sIdx);
     return plan;
   }
 
@@ -198,8 +199,28 @@ export class TrainingPlansService {
       throw new NotFoundException(`Training plan con ID ${id} no encontrado`);
     }
 
-    const merged = {
-      sessions: (updateTrainingPlanDto.sessions || []).map((s: any) => {
+    const merged: any = {};
+
+    // Actualizar campos principales del plan si se proporcionan
+    if (updateTrainingPlanDto.name !== undefined) {
+      merged.name = updateTrainingPlanDto.name;
+    }
+    if (updateTrainingPlanDto.startDate !== undefined) {
+      merged.startDate = new Date(updateTrainingPlanDto.startDate);
+    }
+    if (updateTrainingPlanDto.endDate !== undefined) {
+      merged.endDate = new Date(updateTrainingPlanDto.endDate);
+    }
+    if (updateTrainingPlanDto.isTemplate !== undefined) {
+      merged.isTemplate = updateTrainingPlanDto.isTemplate;
+    }
+    if (updateTrainingPlanDto.templateId !== undefined) {
+      merged.templateId = updateTrainingPlanDto.templateId;
+    }
+
+    // Actualizar sesiones si se proporcionan
+    if (updateTrainingPlanDto.sessions) {
+      merged.sessions = (updateTrainingPlanDto.sessions || []).map((s: any) => {
         const existingSession: any = (existingPlan.sessions as any[]).find((xs: any) => String((xs as any)._id ?? xs.sessionId ?? '') === String(s.sessionId)) || {};
         return {
           sessionId: s.sessionId || existingSession.sessionId || this.generateId('S'),
@@ -231,8 +252,8 @@ export class TrainingPlansService {
             };
           })
         };
-      })
-    } as any;
+      });
+    }
 
     const updatedPlan = await this.trainingPlanModel
       .findByIdAndUpdate(id, merged, { new: true })

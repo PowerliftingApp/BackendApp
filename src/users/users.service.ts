@@ -16,6 +16,7 @@ import {
 import { CreateUserDto } from './dto/create-user.dto';
 import * as crypto from 'crypto';
 import { MailService } from '../mail/mail.service';
+import { TrainingPlansService } from '../training-plans/training-plans.service';
 
 // Función auxiliar para generar ID de entrenador
 function generateCoachId(): string {
@@ -27,6 +28,7 @@ export class UsersService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private mailService: MailService,
+    private trainingPlansService: TrainingPlansService,
   ) {}
 
   async create(createUserDto: CreateUserDto): Promise<UserDocument> {
@@ -252,11 +254,18 @@ export class UsersService {
       throw new ForbiddenException('Solo puedes ver detalles de tus propios atletas');
     }
 
-    // Calcular estadísticas básicas (usar la fecha de creación del documento)
+    // Calcular estadísticas reales
     const joinDate = (athlete as any).createdAt || new Date();
     const daysSinceJoin = Math.floor((Date.now() - joinDate.getTime()) / (1000 * 60 * 60 * 24));
 
-    // Retornar detalles del atleta
+    const plans = await this.trainingPlansService.findByAthleteId(athlete.id);
+    const totalTrainingPlans = plans.length;
+    const activePlans = plans.filter((p: any) => Array.isArray(p.sessions) && p.sessions.some((s: any) => !s.completed)).length;
+    let completedSessions = 0;
+    plans.forEach((p: any) => {
+      (p.sessions || []).forEach((s: any) => { if (s.completed) completedSessions++; });
+    });
+
     return {
       _id: athlete._id,
       fullName: athlete.fullName,
@@ -264,12 +273,13 @@ export class UsersService {
       role: athlete.role,
       status: athlete.status,
       coach: athlete.coach,
+      profilePicture: athlete.profilePicture,
       joinDate: joinDate,
       daysSinceJoin,
       stats: {
-        totalTrainingPlans: 0, // Se calculará en el frontend o se puede agregar lógica aquí
-        activePlans: 0,
-        completedSessions: 0,
+        totalTrainingPlans,
+        activePlans,
+        completedSessions,
       }
     };
   }
