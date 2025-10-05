@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, UploadedFile, UseInterceptors, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, UploadedFile, UseInterceptors, Req, UnauthorizedException } from '@nestjs/common';
 import { TrainingPlansService } from './training-plans.service';
 import { CreateTrainingPlanDto } from './dto/create-training-plan.dto';
 import { UpdateTrainingPlanDto } from './dto/update-training-plan.dto';
@@ -15,11 +15,13 @@ import { join } from 'path';
 export class TrainingPlansController {
   constructor(private readonly trainingPlansService: TrainingPlansService) {}
 
+  @UseGuards(JwtAuthGuard)
   @Post()
   create(@Body() createTrainingPlanDto: CreateTrainingPlanDto) {
     return this.trainingPlansService.create(createTrainingPlanDto);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Get()
   findAll(@Query('athleteId') athleteId?: string, @Query('coachId') coachId?: string) {
     if (athleteId && coachId) {
@@ -34,22 +36,26 @@ export class TrainingPlansController {
     return this.trainingPlansService.findAll();
   }
 
+  @UseGuards(JwtAuthGuard)
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.trainingPlansService.findOne(id);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateTrainingPlanDto: UpdateTrainingPlanDto) {
     return this.trainingPlansService.update(id, updateTrainingPlanDto);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.trainingPlansService.remove(id);
   }
 
   // Convertir un plan de entrenamiento en plantilla
+  @UseGuards(JwtAuthGuard)
   @Post(':id/convert-to-template')
   convertToTemplate(
     @Param('id') planId: string,
@@ -63,6 +69,7 @@ export class TrainingPlansController {
   }
 
   // Desmarcar plan como plantilla
+  @UseGuards(JwtAuthGuard)
   @Patch(':id/remove-template-status')
   removeTemplateStatus(@Param('id') id: string) {
     return this.trainingPlansService.removeTemplateStatus(id);
@@ -84,6 +91,8 @@ export class TrainingPlansController {
       fileSize: 90 * 1024 * 1024, // 90MB por si suben video 1:30 min
     },
   }))
+
+  @UseGuards(JwtAuthGuard)
   async submitExerciseFeedback(
     @Body() body: SubmitExerciseFeedbackDto,
     @UploadedFile() file: any,
@@ -127,8 +136,14 @@ export class TrainingPlansController {
   @UseGuards(JwtAuthGuard)
   @Get('dashboard/:coachId')
   async getDashboardStats(@Param('coachId') coachId: string, @Req() req) {
-    if (req.user.role !== 'coach' || req.user.coachId !== coachId) {
-      throw new Error('No autorizado');
+    // Verificar que el usuario sea un coach y que esté accediendo a su propio dashboard
+    if (req.user.role !== 'coach') {
+      throw new UnauthorizedException('Solo los coaches pueden acceder al dashboard');
+    }
+    
+    // Validar que el coach esté accediendo a su propio dashboard
+    if (req.user.coachId !== coachId) {
+      throw new UnauthorizedException('No autorizado para acceder a este dashboard');
     }
 
     const plans = await this.trainingPlansService.findByCoachId(coachId);
@@ -142,12 +157,29 @@ export class TrainingPlansController {
 
     let completedSessionsThisWeek = 0;
     let totalSessions = 0;
+    let completedSessions = 0;
+    let pendingSessions = 0;
+    let upcomingSessionsCount = 0;
 
     plans.forEach((plan: any) => {
       (plan.sessions || []).forEach((session: any) => {
         totalSessions++;
-        if (session.completed && new Date(session.date) >= weekAgo) {
-          completedSessionsThisWeek++;
+        const sessionDate = new Date(session.date);
+        
+        if (session.completed) {
+          completedSessions++;
+          if (sessionDate >= weekAgo) {
+            completedSessionsThisWeek++;
+          }
+        } else {
+          // Sesión no completada
+          if (sessionDate >= now && sessionDate <= new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)) {
+            // Próximos 7 días
+            upcomingSessionsCount++;
+          } else {
+            // Pendientes (pasadas o futuras más allá de 7 días)
+            pendingSessions++;
+          }
         }
       });
     });
@@ -215,6 +247,25 @@ export class TrainingPlansController {
     upcomingSessions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const recentSessions = upcomingSessions.slice(0, 5);
 
+    // Distribución de sesiones
+    const sessionDistribution = [
+      {
+        name: 'Completadas',
+        value: completedSessions,
+        color: '#D72638',
+      },
+      {
+        name: 'Próximas (7 días)',
+        value: upcomingSessionsCount,
+        color: '#F5B700',
+      },
+      {
+        name: 'Pendientes',
+        value: pendingSessions,
+        color: '#5A5A5A',
+      },
+    ];
+
     return {
       stats: {
         activePlans,
@@ -224,6 +275,7 @@ export class TrainingPlansController {
       },
       weeklyProgress,
       upcomingSessions: recentSessions,
+      sessionDistribution,
     };
   }
 }

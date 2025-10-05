@@ -72,6 +72,13 @@ export class UsersService {
       newUser.coachId = generateCoachId();
     }
 
+    // Enviar correo de activación
+    // await this.mailService.sendActivationEmail(
+    //   newUser.email,
+    //   newUser.fullName,
+    //   activationToken
+    // );
+
     // Si el usuario es atleta y proporcionó un ID de entrenador, verificar y establecer relación
     if (createUserDto.role === UserRole.ATHLETE && createUserDto.coach) {
       const coach = await this.userModel.findOne({
@@ -94,13 +101,6 @@ export class UsersService {
       // Si no hay relación con un entrenador, simplemente guardamos el usuario
       await newUser.save();
     }
-
-    // Enviar correo de activación
-    // await this.mailService.sendActivationEmail(
-    //   newUser.email,
-    //   newUser.fullName,
-    //   activationToken
-    // );
 
     return newUser;
   }

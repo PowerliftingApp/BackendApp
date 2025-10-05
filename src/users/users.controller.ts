@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
-import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import * as multer from 'multer';
@@ -73,7 +73,9 @@ export class UsersController {
     if (req.user.role !== 'athlete') {
       throw new Error('Solo los atletas pueden consultar su entrenador');
     }
-    const coachId = await this.usersService.getCoachIdForAthlete(req.user.userId);
+    const coachId = await this.usersService.getCoachIdForAthlete(
+      req.user.userId,
+    );
     if (!coachId) {
       return { coach: null };
     }
@@ -84,14 +86,17 @@ export class UsersController {
         fullName: coach.fullName,
         email: coach.email,
         coachId: coach.coachId,
-      }
+      },
     };
   }
 
   @UseGuards(JwtAuthGuard)
   @Put('profile')
   async updateProfile(@Req() req, @Body() updateUserDto: UpdateUserDto) {
-    const updated = await this.usersService.updateProfile(req.user.userId, updateUserDto);
+    const updated = await this.usersService.updateProfile(
+      req.user.userId,
+      updateUserDto,
+    );
     return {
       message: 'Perfil actualizado correctamente',
       user: {
@@ -108,32 +113,36 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard)
   @Post('profile-picture')
-  @UseInterceptors(FileInterceptor('profilePicture', {
-    storage: multer.diskStorage({
-      destination: path.join(process.cwd(), 'uploads'),
-      filename: (_req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        const ext = file.originalname.split('.').pop();
-        cb(null, `profile-${uniqueSuffix}.${ext}`);
+  @UseInterceptors(
+    FileInterceptor('profilePicture', {
+      storage: multer.diskStorage({
+        destination: path.join(process.cwd(), 'uploads'),
+        filename: (_req, file, cb) => {
+          const uniqueSuffix =
+            Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const ext = file.originalname.split('.').pop();
+          cb(null, `profile-${uniqueSuffix}.${ext}`);
+        },
+      }),
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB para fotos de perfil
+      },
+      fileFilter: (_req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) {
+          cb(null, true);
+        } else {
+          cb(new Error('Solo se permiten archivos de imagen'), false);
+        }
       },
     }),
-    limits: {
-      fileSize: 5 * 1024 * 1024, // 5MB para fotos de perfil
-    },
-    fileFilter: (_req, file, cb) => {
-      if (file.mimetype.startsWith('image/')) {
-        cb(null, true);
-      } else {
-        cb(new Error('Solo se permiten archivos de imagen'), false);
-      }
-    },
-  }))
-  async updateProfilePicture(
-    @UploadedFile() file: any,
-    @Req() req,
-  ) {
+  )
+  @UseGuards(JwtAuthGuard)
+  async updateProfilePicture(@UploadedFile() file: any, @Req() req) {
     const profilePictureUrl = file ? `/uploads/${file.filename}` : undefined;
-    const updated = await this.usersService.updateProfilePicture(req.user.userId, profilePictureUrl);
+    const updated = await this.usersService.updateProfilePicture(
+      req.user.userId,
+      profilePictureUrl,
+    );
     return {
       message: 'Foto de perfil actualizada correctamente',
       user: {
@@ -182,6 +191,7 @@ export class UsersController {
         coach: user.coach,
         joinDate: (user as any).createdAt,
         status: (user as any).status,
+        profilePicture: user.profilePicture,
       };
     });
 
@@ -204,13 +214,20 @@ export class UsersController {
     const athletes = await this.usersService.getAthletes(coachId);
 
     const totalAthletes = athletes.length;
-    const activeAthletes = athletes.filter((a: any) => a.status === 'active').length;
+    const activeAthletes = athletes.filter(
+      (a: any) => a.status === 'active',
+    ).length;
 
     // Top 5 atletas recientes con progreso básico (puede refinarse luego)
     const athletesWithProgress = athletes.slice(0, 5).map((athlete: any) => {
       const joinDate = (athlete as any).createdAt || new Date();
-      const daysSinceJoin = Math.floor((Date.now() - new Date(joinDate).getTime()) / (1000 * 60 * 60 * 24));
-      const progress = Math.min(Math.max(Math.floor((daysSinceJoin / 30) * 10), 0), 100);
+      const daysSinceJoin = Math.floor(
+        (Date.now() - new Date(joinDate).getTime()) / (1000 * 60 * 60 * 24),
+      );
+      const progress = Math.min(
+        Math.max(Math.floor((daysSinceJoin / 30) * 10), 0),
+        100,
+      );
       return {
         _id: athlete._id,
         fullName: athlete.fullName,
@@ -238,8 +255,11 @@ export class UsersController {
     if (req.user.role !== 'coach') {
       throw new Error('Solo los entrenadores pueden ver detalles de atletas');
     }
-    
-    const athleteDetails = await this.usersService.getAthleteDetails(athleteId, req.user.userId);
+
+    const athleteDetails = await this.usersService.getAthleteDetails(
+      athleteId,
+      req.user.userId,
+    );
     return athleteDetails;
   }
 
@@ -250,12 +270,12 @@ export class UsersController {
     if (req.user.role !== 'coach') {
       throw new Error('Solo los entrenadores pueden buscar atletas');
     }
-    
+
     const athlete = await this.usersService.findAthleteByEmail(email);
     if (!athlete) {
       return { found: false, message: 'Atleta no encontrado' };
     }
-    
+
     return {
       found: true,
       athlete: {
@@ -271,20 +291,17 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard)
   @Put('athletes/:athleteId/link-coach')
-  async linkCoach(
-    @Param('athleteId') athleteId: string,
-    @Req() req,
-  ) {
+  async linkCoach(@Param('athleteId') athleteId: string, @Req() req) {
     // Solo coaches pueden vincular atletas
     if (req.user.role !== 'coach') {
       throw new Error('Solo los entrenadores pueden vincular atletas');
     }
-    
+
     const updated = await this.usersService.linkCoachToAthlete(
       athleteId,
       req.user.userId,
     );
-    
+
     return {
       message: 'Atleta vinculado correctamente',
       athlete: {
@@ -299,10 +316,7 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard)
   @Delete('athletes/:athleteId/coach')
-  async unlinkCoach(
-    @Param('athleteId') athleteId: string,
-    @Req() req,
-  ) {
+  async unlinkCoach(@Param('athleteId') athleteId: string, @Req() req) {
     const requester = {
       userId: req.user.userId,
       role: req.user.role,
