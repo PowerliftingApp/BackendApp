@@ -73,11 +73,11 @@ export class UsersService {
     }
 
     // Enviar correo de activación
-    // await this.mailService.sendActivationEmail(
-    //   newUser.email,
-    //   newUser.fullName,
-    //   activationToken
-    // );
+    await this.mailService.sendActivationEmail(
+      newUser.email,
+      newUser.fullName,
+      activationToken
+    );
 
     // Si el usuario es atleta y proporcionó un ID de entrenador, verificar y establecer relación
     if (createUserDto.role === UserRole.ATHLETE && createUserDto.coach) {
