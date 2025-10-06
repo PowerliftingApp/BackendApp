@@ -5,7 +5,7 @@ import { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.int
 async function bootstrap() {
   // Enable CORS with specific options
   const corsOptions: CorsOptions = {
-    origin: ['http://localhost:5173'],
+    origin: ['http://localhost:5173', "https://powermind.site" , "https://www.powermind.site"],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   };
