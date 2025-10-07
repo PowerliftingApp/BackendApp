@@ -9,14 +9,18 @@ async function bootstrap() {
       'https://powermind.site',
       'https://www.powermind.site'
     ],
-    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'], 
-    allowedHeaders: ['Content-Type', 'Authorization'], 
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
   };
 
   const app = await NestFactory.create(AppModule);
   app.enableCors(corsOptions);
 
-  await app.listen(process.env.PORT ?? 3000);
+  const port = process.env.PORT ?? 3000;
+  // Aquí es importante pasar el host 0.0.0.0 para que escuche en todas las interfaces
+  await app.listen(port, '0.0.0.0');
+  console.log(`🚀 Server running on port ${port}`);
 }
+
 bootstrap();
