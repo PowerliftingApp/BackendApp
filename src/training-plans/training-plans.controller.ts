@@ -6,7 +6,7 @@ import { CreateTemplateFromPlanDto } from '../templates/dto/create-template-from
 import { SubmitExerciseFeedbackDto } from './dto/submit-exercise-feedback.dto';
 import { UpdateSessionNotesDto } from './dto/update-session-notes.dto';
 import { SubmitPerformedSetsDto } from './dto/submit-performed-sets.dto';
-import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { join } from 'path';
