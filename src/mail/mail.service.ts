@@ -13,7 +13,8 @@ export class MailService {
       auth: {
         user: this.configService.get<string>('EMAIL_USER'),
         pass: this.configService.get<string>('EMAIL_PASS')
-      }
+      },
+      secure: false
     });
   }
 
