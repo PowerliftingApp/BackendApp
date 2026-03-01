@@ -1,21 +1,40 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class MailService {
-  private transporter: nodemailer.Transporter;
+  private apiUrl: string;
+  private apiToken: string;
+  private senderEmail: string;
+  private senderName: string;
 
   constructor(private configService: ConfigService) {
-    this.transporter = nodemailer.createTransport({
-      host: "live.smtp.mailtrap.io",
-      port: 587,
-      auth: {
-        user: this.configService.get<string>('EMAIL_USER'),
-        pass: this.configService.get<string>('EMAIL_PASS')
+    this.apiToken = this.configService.get<string>('MAILTRAP_API_TOKEN') || '';
+    this.senderEmail = this.configService.get<string>('MAILTRAP_SENDER_EMAIL') || '';
+    this.senderName = this.configService.get<string>('MAILTRAP_SENDER_NAME') || '';
+
+    // Endpoint de Mailtrap Email Sending API
+    this.apiUrl = 'https://send.api.mailtrap.io/api/send';
+  }
+
+  private async sendMailHttp(payload: any) {
+    const response = await fetch(this.apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Api-Token': this.apiToken, // Autorización con token
       },
-      secure: false
+      body: JSON.stringify(payload),
     });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(
+        `Mailtrap API error: ${response.status} ${errorText}`
+      );
+    }
+
+    return response.json();
   }
 
   async sendActivationEmail(
@@ -26,11 +45,9 @@ export class MailService {
     const frontendUrl = this.configService.get<string>('FRONTEND_URL');
     const activationUrl = `${frontendUrl}/activate-account/${token}`;
 
-    console.log(this.configService.get<string>('EMAIL_FROM'))
-
-    await this.transporter.sendMail({
-      from: this.configService.get<string>('EMAIL_FROM'),
-      to: email,
+    const payload = {
+      from: { email: this.senderEmail, name: this.senderName },
+      to: [{ email }],
       subject: 'Activa tu cuenta en Powermind',
       html: `
         <h1>¡Hola ${name}!</h1>
@@ -39,7 +56,9 @@ export class MailService {
         <p>Este enlace expirará en 24 horas.</p>
         <p>Si no solicitaste esta cuenta, puedes ignorar este mensaje.</p>
       `,
-    });
+    };
+
+    await this.sendMailHttp(payload);
   }
 
   async sendPasswordRecoveryEmail(
@@ -50,9 +69,9 @@ export class MailService {
     const frontendUrl = this.configService.get<string>('FRONTEND_URL');
     const recoveryUrl = `${frontendUrl}/reset-password?token=${token}`;
 
-    await this.transporter.sendMail({
-      from: this.configService.get<string>('EMAIL_FROM'),
-      to: email,
+    const payload = {
+      from: { email: this.senderEmail, name: this.senderName },
+      to: [{ email }],
       subject: 'Recuperación de contraseña - Powermind',
       html: `
         <h1>¡Hola ${name}!</h1>
@@ -61,6 +80,8 @@ export class MailService {
         <p>Este enlace expirará en 1 hora.</p>
         <p>Si no solicitaste este cambio, puedes ignorar este mensaje.</p>
       `,
-    });
+    };
+
+    await this.sendMailHttp(payload);
   }
 }
